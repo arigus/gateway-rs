@@ -13,9 +13,12 @@ pub fn version() -> semver::Version {
 }
 
 /// The Helium staging router URL. Used as one of the default routers.
-pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:8080/v1/router/message";
-pub const HELIUM_PRODUCTION_ROUTER: &str = "http://52.8.80.146:8080/v1/router/message";
+pub const HELIUM_STAGING_ROUTER: &str = "http://54.176.88.149:8080";
+pub const HELIUM_PRODUCTION_ROUTER: &str = "http://52.8.80.146:8080";
 pub const GITHUB_RELEASES: &str = "https://api.github.com/repos/helium/gateway-rs/releases";
+
+/// Default helium blockchain service (validator)
+pub const HELUM_VALIDATOR_OHIO: &str = "http://18.216.219.228:8080";
 
 /// Settings are all the configuration parameters the service needs to operate.
 #[derive(Debug, Deserialize)]
@@ -24,8 +27,8 @@ pub struct Settings {
     /// Default "127.0.0.1:1680"
     #[serde(deserialize_with = "deserialize_listen_addr")]
     pub listen_addr: SocketAddr,
-    /// The location of the key pem file for the gateway. Defaults to
-    /// "/etc/gateway/gateway_key.pem". If the keyfile is not found there a new
+    /// The location of the keypair binary file for the gateway. Defaults to
+    /// "/etc/helium_gateway/keypair.bin". If the keyfile is not found there a new
     /// one is generated and saved in that location.
     #[serde(deserialize_with = "deserialize_keypair")]
     pub keypair: Arc<keypair::Keypair>,
@@ -35,8 +38,12 @@ pub struct Settings {
     pub region: Region,
     /// The router(s) to deliver packets to. Defaults to the Helium staging and
     /// production routers.
-    #[serde(deserialize_with = "deserialize_routers")]
+    #[serde(deserialize_with = "deserialize_uris")]
     pub routers: Vec<Uri>,
+    /// The validator(s) to query for chain related state. Defaults to the Helium
+    ///  validator pool.
+    #[serde(deserialize_with = "deserialize_uri")]
+    pub validator: Uri,
     /// Log settings
     pub log: LogSettings,
     /// Update settings
@@ -101,11 +108,11 @@ impl Settings {
         c.set_default("keypair", "/etc/helium_gateway/keypair.bin")?;
         c.set_default("listen_addr", "127.0.0.1:1680")?;
         c.set_default("region", "US915")?;
-        c.set_default("root_certs", Vec::<String>::new())?;
         c.set_default(
             "routers",
             vec![HELIUM_STAGING_ROUTER, HELIUM_PRODUCTION_ROUTER],
         )?;
+        c.set_default("validator", HELUM_VALIDATOR_OHIO)?;
         c.set_default("log.level", "info")?;
         c.set_default("log.method", "stdio")?;
         c.set_default("log.timestamp", "false")?;
@@ -183,7 +190,7 @@ where
     Ok(region)
 }
 
-fn deserialize_routers<'de, D>(d: D) -> std::result::Result<Vec<Uri>, D::Error>
+fn deserialize_uris<'de, D>(d: D) -> std::result::Result<Vec<Uri>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -192,7 +199,7 @@ where
     for entry in entries {
         let router = entry
             .parse()
-            .map_err(|e| de::Error::custom(format!("Could not parse router url: {}", e)))?;
+            .map_err(|e| de::Error::custom(format!("invalid uri: {}", e)))?;
         result.push(router);
     }
     Ok(result)
@@ -249,9 +256,6 @@ where
     let uri_string = String::deserialize(d)?;
     match uri_string.parse() {
         Ok(uri) => Ok(uri),
-        Err(err) => Err(de::Error::custom(format!(
-            "invalid url format: \"{}\"",
-            err
-        ))),
+        Err(err) => Err(de::Error::custom(format!("invalid uri: \"{}\"", err))),
     }
 }

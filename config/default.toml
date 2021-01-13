@@ -1,11 +1,10 @@
 key = "/etc/helium_gateway/key.pem"
 listen_addr = "127.0.0.1:1680"
 region = "US915"
-routers = ["http://54.176.88.149:20443/v1/router/message"]
 
 [log]
 method = "stdio"
-level = "info"
+level = "debug"
 timestamp = false
 
 [update]

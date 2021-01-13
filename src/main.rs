@@ -62,9 +62,8 @@ pub fn main() -> Result {
 
     let settings = Settings::new(cli.config.clone())?;
     let logger = mk_logger(&settings);
-    let run_logger = logger.clone();
     let scope_guard = slog_scope::set_global_logger(logger);
-    //    let _log_guard = slog_stdlog::init().unwrap();
+    let run_logger = slog_scope::logger().new(o!());
     // Start the runtime after the daemon fork
     let res = tokio::runtime::Builder::new()
         .threaded_scheduler()

@@ -1,13 +1,18 @@
 use crate::{
     error::Result,
     gateway::Gateway,
+    router::Router,
     settings::{self, Settings},
     updater::Updater,
 };
 use slog::{info, Logger};
+use tokio::sync::mpsc;
 
 pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &Logger) -> Result {
-    let mut gateway = Gateway::new(&settings).await?;
+    let (uplink_sender, uplink_receiver) = mpsc::channel(20);
+    let (downlink_sender, downlink_receiver) = mpsc::channel(10);
+    let mut router = Router::new(downlink_sender, uplink_receiver, &settings)?;
+    let mut gateway = Gateway::new(uplink_sender, downlink_receiver, &settings).await?;
     let updater = Updater::new(&settings)?;
     info!(logger,
         "starting server";
@@ -16,6 +21,7 @@ pub async fn run(shutdown: &triggered::Listener, settings: &Settings, logger: &L
     );
     tokio::try_join!(
         gateway.run(shutdown.clone(), logger),
+        router.run(shutdown.clone(), logger),
         updater.run(shutdown.clone(), logger)
     )
     .map(|_| ())

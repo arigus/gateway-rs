@@ -9,18 +9,26 @@ pub enum Error {
     ConfigError(#[from] config::ConfigError),
     #[error("server error")]
     ServerError(String),
-    #[error("client error")]
-    ClientError(#[from] reqwest::Error),
     #[error("http error")]
     HttpError(#[from] http::Error),
+    #[error("uri error")]
+    UriError(#[from] http::uri::InvalidUri),
     #[error("io error")]
     IOError(#[from] std::io::Error),
     #[error("longfi error")]
     LfcError(#[from] longfi::LfcError),
     #[error("ed25519 error")]
     ED2519Error(#[from] ed25519_dalek::ed25519::Error),
+    #[error("base64 decode error")]
+    Base64Error(#[from] base64::DecodeError),
     #[error("json error")]
     JSONError(#[from] serde_json::Error),
+    #[error("services error")]
+    ServiceError(#[from] helium_proto::services::Error),
+    #[error("rpc error")]
+    RpcError(#[from] tonic::Status),
+    #[error("protobuf error")]
+    ProstError(#[from] prost::EncodeError),
 }
 
 impl From<net::AddrParseError> for Error {
@@ -43,12 +51,6 @@ impl From<lorawan::LoraWanError> for Error {
 
 impl From<semtech_udp::server_runtime::Error> for Error {
     fn from(v: semtech_udp::server_runtime::Error) -> Self {
-        Self::ServerError(v.to_string())
-    }
-}
-
-impl From<prost::EncodeError> for Error {
-    fn from(v: prost::EncodeError) -> Self {
         Self::ServerError(v.to_string())
     }
 }

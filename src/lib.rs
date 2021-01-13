@@ -2,6 +2,7 @@ pub mod cmd;
 pub mod error;
 pub mod gateway;
 pub mod keypair;
+pub mod link_packet;
 pub mod releases;
 pub mod router;
 pub mod server;
