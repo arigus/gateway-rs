@@ -119,7 +119,6 @@ impl Router {
             match routing::Routing::from_proto(routing) {
                 Ok(client) => {
                     self.clients.insert(routing.oui, client);
-                    ()
                 }
                 Err(err) => warn!(logger, "failed to construct router client: {:?}", err),
             }
