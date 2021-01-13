@@ -4,8 +4,8 @@ use crate::{
     settings::{version, Settings},
 };
 use futures::TryStreamExt;
-use slog::{info, o, warn, Logger};
 use http::Uri;
+use slog::{info, o, warn, Logger};
 use std::{
     env, io,
     path::{Path, PathBuf},
