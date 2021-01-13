@@ -1,10 +1,11 @@
-use crate::router::{
-    filter::{DevAddrFilter, EuiFilter},
-    mk_router_client, RouterClient,
+use crate::{
+    error::Result,
+    router::{
+        filter::{DevAddrFilter, EuiFilter},
+        mk_router_client, RouterClient,
+    },
 };
 use helium_proto::routing_information::Data as RoutingData;
-use http::Uri;
-use std::convert::TryFrom;
 
 pub struct Routing {
     pub(crate) filters: Vec<EuiFilter>,
@@ -21,39 +22,24 @@ impl Routing {
             }
         }
     }
-}
 
-impl From<&helium_proto::Routing> for Routing {
-    fn from(r: &helium_proto::Routing) -> Self {
+    pub fn from_proto(r: &helium_proto::Routing) -> Result<Self> {
         let filters = r.filters.iter().map(|f| EuiFilter::from_bin(&f)).collect();
         let subnets = r
             .subnets
             .iter()
             .map(|s| DevAddrFilter::from_bin(&s))
             .collect();
-        Self {
+        let mut clients = vec![];
+        for address in r.addresses.iter() {
+            let uri = String::from_utf8_lossy(&address.uri).parse()?;
+            let client = mk_router_client(uri)?;
+            clients.push(client);
+        }
+        Ok(Self {
             filters,
             subnets,
-            clients: r
-                .addresses
-                .iter()
-                .filter_map(|address| match Uri::try_from(&address.uri[..]) {
-                    Ok(uri) => match mk_router_client(uri.clone()) {
-                        Ok(client) => {
-                            log::info!("made client for uri {:?}", uri);
-                            Some(client)
-                        }
-                        Err(err) => {
-                            log::warn!("failed to make client for uri {:?}: {:?}", uri, err);
-                            None
-                        }
-                    },
-                    Err(err) => {
-                        log::warn!("invalid uri {:?}", err);
-                        None
-                    }
-                })
-                .collect(),
-        }
+            clients,
+        })
     }
 }

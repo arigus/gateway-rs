@@ -5,15 +5,14 @@ use helium_proto::{
 };
 use http::Uri;
 use slog::{debug, info, o, warn, Logger};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::time::Duration;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub mod filter;
 pub mod routing;
 
-// static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-// static AGENT_ID_HEADER: &str = "x-gateway-id";
-const CONNECT_TIMEOUT: u64 = 10;
+pub const CONNECT_TIMEOUT: u64 = 10;
 
 #[derive(Debug, Clone)]
 pub struct Message(BlockchainStateChannelMessageV1);
@@ -23,8 +22,22 @@ pub struct Response(BlockchainStateChannelMessageV1);
 
 pub use helium_proto::Region;
 
-type RouterClient = services::router::Client<Channel>;
-type ValidatorClient = services::validator::Client<Channel>;
+pub type RouterClient = services::router::Client<Channel>;
+pub type ValidatorClient = services::validator::Client<Channel>;
+
+pub fn mk_router_client(uri: Uri) -> Result<RouterClient> {
+    let channel = Endpoint::from(uri)
+        .timeout(Duration::from_secs(CONNECT_TIMEOUT))
+        .connect_lazy()?;
+    Ok(RouterClient::new(channel))
+}
+
+pub fn mk_validator_client(uri: Uri) -> Result<ValidatorClient> {
+    let channel = Endpoint::from(uri)
+        .timeout(Duration::from_secs(CONNECT_TIMEOUT))
+        .connect_lazy()?;
+    Ok(ValidatorClient::new(channel))
+}
 
 pub struct Router {
     downlinks: Sender<LinkPacket>,
@@ -103,7 +116,13 @@ impl Router {
             )
         }
         for routing in &routing_response.routings {
-            self.clients.insert(routing.oui, routing.into());
+            match routing::Routing::from_proto(routing) {
+                Ok(client) => {
+                    self.clients.insert(routing.oui, client);
+                    ()
+                }
+                Err(err) => warn!(logger, "failed to construct router client: {:?}", err),
+            }
         }
         self.routing_height = routing_response.height;
         info!(
@@ -174,18 +193,4 @@ impl Router {
             .into_inner();
         Ok(stream)
     }
-}
-
-fn mk_router_client(uri: Uri) -> Result<RouterClient> {
-    let channel = Endpoint::from(uri)
-        .timeout(Duration::from_secs(CONNECT_TIMEOUT))
-        .connect_lazy()?;
-    Ok(RouterClient::new(channel))
-}
-
-fn mk_validator_client(uri: Uri) -> Result<ValidatorClient> {
-    let channel = Endpoint::from(uri)
-        .timeout(Duration::from_secs(CONNECT_TIMEOUT))
-        .connect_lazy()?;
-    Ok(ValidatorClient::new(channel))
 }
